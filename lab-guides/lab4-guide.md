@@ -347,6 +347,19 @@ Rewrite the application to only use JDG library mode, configure a file store and
 			.transport().addProperty("configurationFile", "jgroups-cluster-config.xml")
 			.globalJmxStatistics().allowDuplicateDomains(true).enable()
 			.build();
+
+1. Update the createDeployment() method in the TaskServiceTest:
+
+	@Deployment
+	public static WebArchive createDeployment() {
+		return ShrinkWrap.create(WebArchive.class,"todo-test.war")
+				.addClass(Config.class)
+				.addClass(Task.class)
+				.addClass(TaskService.class)
+				.addAsResource("jgroups-cluster-config.xml")
+				.addAsWebInfResource(new File("src/main/webapp/WEB-INF/jboss-deployment-structure.xml"))
+				.addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
+	}
 			
 1. Run the JUnit test again to verify your changes
 
