@@ -10,7 +10,7 @@ Acme Inc has released a new cloud service application to manage tasks lists call
 The main challenge for Acme right now is that the round trip to a database is to expensive for the smart apps and the responsive UI interface. 
 
 During a meeting with the local Red Hat Sales team, the JBoss SA suggested that Acme should use JDG to avoid the expensive round trip. Initally the JBoss SA recommends that Acme implements JDG as a side cache with minimal changes to the application.
-
+t
 ## Goals
 Increase read performance 10 times by implementing JDG as side cache to the database without changing the UI, REST service or data model object. 
 
@@ -47,21 +47,25 @@ To assist with setting up the lab environment we have provided a shell script th
 
         $ cd projects/lab1
         
-1. Run the JUnit test either in JBDS or by using command line. To run the test the ```arquillian-jbossas-remote-7``` profile will have to be activated.
+1. Run the JUnit test either in JBDS (see below) or by using command line (below that). To run the test the ```arquillian-jbossas-remote-7``` profile will have to be activated.
+
+1. Run the JUnit test by right clicking TaskServiceTest.java and select Run As ... -> JUnit Test
+
+	![Image of how to run junit test](images/lab1-image1.png)
 
 		$ mvn -P arquillian-jbossas-remote-7 test
-		
+
 1. Build and deploy the project
 
         $ mvn package jboss-as:deploy
         
-1. Verify in a browser that application deployed nice successfully by opening [http://localhost:8080/todo](http://localhost:8080/todo) in a browser. 
+1. Verify in a browser that application deployed nice successfully by opening [http://localhost:8080/mytodo](http://localhost:8080/mytodo) in a browser. 
 
 1. Click around and verify that you can add tasks and complete tasks etc.
 
 	The Mock application is simple todo application that uses a database to store tasks. It uses angular.js on the client and the server side consists of REST services to list, create and update these tasks.
 	
-1. Go thourgh the code a bit to understand the application. 
+1. Go through the code a bit to understand the application. 
 
 
 ### Add dependencies to the maven project
@@ -103,7 +107,7 @@ In this step-by-step section we will add dependecies to the maven project so tha
 
    The setup script that we run to setup the environment installs JDG as JBoss EAP modules, which means that we don't have to ship them as part of the WAR file. For example if we need to patch JDG we don't have to patch the application. We do however need to tell the cointainer (JBoss EAP) that our application depends on these modules. This can be done via adding dependencies to the ```MANIFEST.MF``` file (can be created as part of the maven built) or by using ```jboss-deployment-structure.xml```. We are going to use the later since it works better with Arquillian testing. 
 
-   Create a file called ```jboss-deployment-structure.xml``` under ```src/main/webapp/WEB-INF``` that looks like this:
+   Re-use the file called ```jboss-deployment-structure.xml``` under ```src/main/webapp/WEB-INF``` and update it to look like this:
 
 		<jboss-deployment-structure>
 			<deployment>
@@ -130,6 +134,7 @@ to the class
 		
 	you also need to add the follwing import statement if you IDE doesn't fix that
 	
+		import javax.inject.Inject;
 		import org.infinispan.Cache;
 		import org.jboss.infinispan.demo.model.Task;
 		
@@ -149,21 +154,21 @@ to the class
 			cache.put(task.getId(),task);
 		}
 
-1.	Add the implementation of the update method as shown below:
+1.	Change the implementation of the update method to look like this:
 
 		public void update(Task task) {
 			em.merge(task);
 			cache.replace(task.getId(),task);
 		}
 		
-1.	Add the implementation of the delete method as shown below:
+1.	Change the implementation of the delete method to look like this:
 
 		public void delete(Task task) {
 			em.remove(em.getReference(task.getClass(),task.getId()));
 			cache.remove(task.getId());
 		}
 
-1. We also need fill the cache with the existing values in the database using by adding the following method:
+1. We also need fill the cache with the existing values in the database by updating the following method:
 		
 		@PostConstruct
 		public void startup() {
@@ -182,7 +187,7 @@ to the class
 			
 		}
 
-1. Next make sure that the TaskServiceTest class adds the jboss-deployment-structure.xml, which should look like this:
+1. Next make sure that the TaskServiceTest class has added the jboss-deployment-structure.xml, which should look like this:
 
 		.addAsWebInfResource(new File("src/main/webapp/WEB-INF/jboss-deployment-structure.xml"))
 
@@ -278,11 +283,11 @@ Below is a code snipped that shows how to create configuration objects for the c
 				.build();
 		DefaultCacheManager manager = new DefaultCacheManager(glob, loc, true);
 		
-There are two main configuration object: ```GlobalConfiguration``` for the Global configuration if we use for example multiple clustred configurations and ```Configuration``` to hold the local configuration. In this example we allow muliple domains since otherwise we get a nasty exception saying that the cache allready exists. In the local configuration we enable JMX statistics (need for JON for example) and we set the eviction.strategy to NONE, meaning that no objects are evicted. 
+There are two main configuration object: ```GlobalConfiguration``` for the Global configuration if we use for example multiple clustred configurations and ```Configuration``` to hold the local configuration. In this example we allow multiple domains since otherwise we get a nasty exception saying that the cache already exists. In the local configuration we enable JMX statistics (needed for JON for example) and we set the eviction.strategy to NONE, meaning that no objects are evicted. 
 
 We can then create a cache manager object using these configuration and pass it true to also start it.
 
-Since we are using CDI in our example we can actually override the cache manager that is used when someone injects a cache with ```@Inject Cache<?,?> cache;``` like we do in TaskService class. This can be done using something called Producer in CDI. So all we have to do is crate a method that looks like this:
+Since we are using CDI in our example we can actually override the cache manager that is used when someone injects a cache with ```@Inject Cache<?,?> cache;``` like we do in TaskService class. This can be done using something called Producer in CDI. So all we have to do is create a method that looks like this:
 
 		@Produces
 		@ApplicationScoped
@@ -291,7 +296,7 @@ Since we are using CDI in our example we can actually override the cache manager
 		
 Then we put this class somewhere in our classpath (or even better in our source) and add the configuration code from above in it. 
 
-1. Add a Config class in package org.jboss.infinispan.demo that looks loke this:
+1. Update the Config class in package org.jboss.infinispan.demo to look like this:
 
 		package org.jboss.infinispan.demo;
 		
@@ -338,14 +343,10 @@ Then we put this class somewhere in our classpath (or even better in our source)
 			}
 		}
 		
-1. Soon we are ready to deploy the application, but first we need to make sure that test passes. Before we run the test, lets check that TaskServiceTest.java add the Config class to the test, liek this:
+1. Soon we are ready to deploy the application, but first we need to make sure that test passes. Before we run the test, lets check that TaskServiceTest.java add the Config class to the test, like this:
 
 		.addClass(Config.class)
 		
-1. Run the JUnit test by right clicking TaskServiceTest.java and select Run As ... -> JUnit Test
-
-	![Image of how to run junit test](images/lab1-image1.png)
-
 1. If everything is green we are ready to deploy the application with the following command in a terminal
 
 		$ mvn package jboss-as:deploy
